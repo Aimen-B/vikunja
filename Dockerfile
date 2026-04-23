@@ -1,61 +1,72 @@
-# syntax=docker/dockerfile:1@sha256:b6afd42430b15f2d2a4c5a02b919e98a525b785b1aaff16747d2f623364e39b6
-FROM --platform=$BUILDPLATFORM node:24.13.0-alpine@sha256:931d7d57f8c1fd0e2179dbff7cc7da4c9dd100998bc2b32afc85142d8efbc213 AS frontendbuilder
+# syntax=docker/dockerfile:1.7
 
-WORKDIR /build
+ARG NODE_VERSION=24.13.0
+ARG GO_VERSION=1.25.7
 
-ENV PNPM_CACHE_FOLDER=.cache/pnpm/
+FROM node:${NODE_VERSION}-alpine AS frontend-builder
+
+WORKDIR /src/frontend
+
+ENV PNPM_CACHE_FOLDER=/pnpm/store
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV CYPRESS_INSTALL_BINARY=0
 
-COPY frontend/pnpm-lock.yaml frontend/package.json frontend/.npmrc ./
-RUN npm install -g corepack && corepack enable && \
-    pnpm install --frozen-lockfile
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+
+RUN npm install -g corepack && corepack enable && pnpm install --frozen-lockfile
+
 COPY frontend/ ./
+
 ARG RELEASE_VERSION=dev
-RUN echo "{\"VERSION\": \"${RELEASE_VERSION/-g/-}\"}" > src/version.json && pnpm run build
 
-FROM --platform=$BUILDPLATFORM ghcr.io/techknowlogick/xgo:go-1.25.x@sha256:11ac5e6cb8767caea0c62c420e053cb69554638ec255f9bbef8ed411e70c9eec AS apibuilder
+RUN printf '{\n  "VERSION": "%s"\n}\n' "${RELEASE_VERSION}" > src/version.json \
+    && pnpm run build
 
-RUN go install github.com/magefile/mage@latest && \
-    mv /go/bin/mage /usr/local/go/bin
+FROM golang:${GO_VERSION}-alpine AS backend-builder
 
-WORKDIR /go/src/code.vikunja.io/api
+WORKDIR /src
+
+RUN apk add --no-cache ca-certificates git
+
+COPY go.mod go.sum ./
+RUN go mod download
+
 COPY . ./
-COPY --from=frontendbuilder /build/dist ./frontend/dist
+COPY --from=frontend-builder /src/frontend/dist ./frontend/dist
 
-ARG TARGETOS TARGETARCH TARGETVARIANT RELEASE_VERSION
-ENV RELEASE_VERSION=$RELEASE_VERSION
+ARG RELEASE_VERSION=dev
 
-RUN export PATH=$PATH:$GOPATH/bin && \
-	mage build:clean && \
-    mage release:xgo "${TARGETOS}/${TARGETARCH}/${TARGETVARIANT}"
+ENV CGO_ENABLED=0
 
-RUN mkdir -p /tmp && chmod 1777 /tmp
+RUN go build \
+    -tags "osusergo" \
+    -ldflags "-s -w -X code.vikunja.io/api/pkg/version.Version=${RELEASE_VERSION} -X main.Tags=osusergo" \
+    -o /out/vikunja \
+    .
 
-#  ┬─┐┬ ┐┌┐┐┌┐┐┬─┐┬─┐
-#  │┬┘│ │││││││├─ │┬┘
-#  ┘└┘┘─┘┘└┘┘└┘┴─┘┘└┘
+RUN mkdir -p /out/rootfs/app/vikunja/files /out/rootfs/tmp \
+    && chmod 1777 /out/rootfs/tmp
 
-# The actual image
-FROM scratch
+FROM scratch AS runtime
 
-LABEL org.opencontainers.image.authors='maintainers@vikunja.io'
-LABEL org.opencontainers.image.url='https://vikunja.io'
-LABEL org.opencontainers.image.documentation='https://vikunja.io/docs'
-LABEL org.opencontainers.image.source='https://code.vikunja.io/vikunja'
-LABEL org.opencontainers.image.licenses='AGPLv3'
-LABEL org.opencontainers.image.title='Vikunja'
+LABEL org.opencontainers.image.authors="maintainers@vikunja.io"
+LABEL org.opencontainers.image.documentation="https://vikunja.io/docs"
+LABEL org.opencontainers.image.licenses="AGPL-3.0-or-later"
+LABEL org.opencontainers.image.source="https://github.com/go-vikunja/vikunja"
+LABEL org.opencontainers.image.title="Vikunja"
+LABEL org.opencontainers.image.url="https://vikunja.io"
 
 WORKDIR /app/vikunja
-ENTRYPOINT [ "/app/vikunja/vikunja" ]
+
+COPY --from=backend-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=backend-builder /out/rootfs/tmp /tmp
+COPY --from=backend-builder --chown=1000:1000 /out/rootfs/app/vikunja /app/vikunja
+COPY --from=backend-builder --chown=1000:1000 /out/vikunja /app/vikunja/vikunja
+
+USER 1000:1000
+
+ENV VIKUNJA_SERVICE_ROOTPATH=/app/vikunja
+
 EXPOSE 3456
 
-COPY --from=apibuilder --chown=1000:1000 /tmp /tmp
-
-USER 1000
-
-ENV VIKUNJA_SERVICE_ROOTPATH=/app/vikunja/
-ENV VIKUNJA_DATABASE_PATH=/db/vikunja.db
-
-COPY --from=apibuilder /build/vikunja-* vikunja
-COPY --from=apibuilder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+ENTRYPOINT ["/app/vikunja/vikunja"]

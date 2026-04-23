@@ -5,6 +5,10 @@ docs/
 .devenv/
 .direnv/
 .idea/
+.git/
+.env
+.env.*
+!.env.example
 
 Dockerfile
 docker-manifest.tmpl

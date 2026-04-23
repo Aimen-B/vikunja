@@ -1,62 +1,191 @@
-<img src="https://vikunja.io/images/vikunja-logo.svg" alt="" style="display: block;width: 50%;margin: 0 auto;" width="50%"/>
+# Vikunja Source Deployment Repo
 
-[![Build Status](https://github.com/go-vikunja/vikunja/actions/workflows/ci.yml/badge.svg)](https://github.com/go-vikunja/vikunja/actions/workflows/ci.yml)
-[![License: AGPL-3.0-or-later](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)](LICENSE)
-[![Install](https://img.shields.io/badge/download-v2.3.0-brightgreen.svg)](https://vikunja.io/docs/installing)
-[![Docker Pulls](https://img.shields.io/docker/pulls/vikunja/vikunja.svg)](https://hub.docker.com/r/vikunja/vikunja/)
-[![Swagger Docs](https://img.shields.io/badge/swagger-docs-brightgreen.svg)](https://try.vikunja.io/api/v1/docs)
-[![Go Report Card](https://goreportcard.com/badge/code.vikunja.io/api)](https://goreportcard.com/report/code.vikunja.io/api)
+This repository contains the full Vikunja source tree plus a simple Docker-based workflow for two cases:
 
-# Vikunja
+1. Local development with `docker compose`
+2. Deployment on Coolify with the Docker Compose build pack
 
-> The Todo-app to organize your life.
+The app is built from source inside Docker. It does not use the official prebuilt Vikunja image as the main runtime.
 
-If Vikunja is useful to you, please consider [buying me a coffee](https://www.buymeacoffee.com/kolaente), [sponsoring me on GitHub](https://github.com/sponsors/kolaente) or buying [a sticker pack](https://vikunja.io/stickers).
-I'm also offering [a hosted version of Vikunja](https://vikunja.cloud/) if you want a hassle-free solution for yourself or your team.
+## Repo Structure
 
-## Table of contents
+```text
+.
+├── Dockerfile
+├── docker-compose.yml
+├── docker-compose.coolify.yml
+├── .env.example
+├── frontend/
+├── pkg/
+├── main.go
+└── ...
+```
 
-- [Security Reports](#security-reports)
-- [Features](#features)
-- [Docs](#docs)
-	- [Roadmap](#roadmap)
-- [Contributing](#contributing)
-- [License](#license)
-	- [Unsplash Images](#unsplash-images)
+## Tradeoffs
 
-## Security Reports
+- This setup rebuilds the app image after code changes instead of trying to hot-reload both the Go backend and Vite frontend inside containers.
+- That makes local iteration slower than a dedicated live-reload dev stack, but it keeps the structure simple and keeps the same source-build path for local use and Coolify.
+- PostgreSQL and uploads are persisted with Docker volumes so local restarts and redeploys do not wipe state.
 
-If you find any security-related issues you don't want to disclose publicly, please use [the contact information on our website](https://vikunja.io/contact/#security).
+## Local Setup
 
-## Features
+1. Copy the example environment file:
 
-See [the features page](https://vikunja.io/features/) on our website for a more exhaustive list or 
-try it on [try.vikunja.io](https://try.vikunja.io)!
+   ```bash
+   cp .env.example .env
+   ```
 
-## Docs
+2. Edit `.env` and set at least:
 
-* [Installing](https://vikunja.io/docs/installing/)
-* [Build from source](https://vikunja.io/docs/build-from-sources/)
-* [Development setup](https://vikunja.io/docs/development/)
-* [Magefile](https://vikunja.io/docs/magefile/)
-* [Testing](https://vikunja.io/docs/testing/)
+   - `VIKUNJA_SERVICE_SECRET`
+   - `POSTGRES_PASSWORD`
+   - `VIKUNJA_SERVICE_PUBLICURL`
 
-All docs can be found on [the Vikunja home page](https://vikunja.io/docs/).
+   For local use, `VIKUNJA_SERVICE_PUBLICURL=http://localhost:3456` is fine.
 
-### Roadmap
+3. Build and start the stack:
 
-See [the roadmap](https://my.vikunja.cloud/share/QFyzYEmEYfSyQfTOmIRSwLUpkFjboaBqQCnaPmWd/auth) (hosted on Vikunja!) for more!
+   ```bash
+   docker compose up -d --build
+   ```
 
-## Contributing
+4. Open:
 
-Please check out the contribution guidelines on [the website](https://vikunja.io/docs/development/).
+   ```text
+   http://localhost:3456
+   ```
 
-## License
+5. Watch logs if needed:
 
-Most of this repository is licensed under [AGPL‑3.0‑or‑later](LICENSE).
-The contents of [`desktop/`](desktop/) are licensed under
-[GPL‑3.0‑or‑later](desktop/LICENSE).
+   ```bash
+   docker compose logs -f app
+   ```
 
-### Unsplash Images
+## How To Edit The Code
 
-Background images from Unsplash are distributed under the [Unsplash License](https://unsplash.com/license). The license requires giving credit to the photographer and Unsplash. See [Unsplash’s terms](https://unsplash.com/terms) for more information.
+- Backend code lives mainly in `pkg/` and `main.go`.
+- Frontend code lives in `frontend/`.
+- The Docker image builds the frontend first, copies `frontend/dist` into the Go build, and then compiles the Vikunja binary.
+
+Make your code changes normally in this repo. It is a standard Git checkout, so you can edit, commit, branch, and push it like any other repository.
+
+## How To Rebuild After Code Changes
+
+After changing Go or frontend code:
+
+```bash
+docker compose build app
+docker compose up -d app
+```
+
+If you changed dependencies or want a full rebuild:
+
+```bash
+docker compose up -d --build
+```
+
+If you want to stop the stack:
+
+```bash
+docker compose down
+```
+
+The following data stays persisted in Docker volumes:
+
+- PostgreSQL data
+- Vikunja uploaded files
+
+## How To Push To GitHub
+
+This checkout starts with the upstream Vikunja repository as `origin`. If you want to push this customized setup to your own GitHub repository while keeping upstream available:
+
+```bash
+git remote rename origin upstream
+git remote add origin git@github.com:YOUR_GITHUB_USER/YOUR_REPO.git
+git push -u origin main
+```
+
+If you prefer HTTPS:
+
+```bash
+git remote rename origin upstream
+git remote add origin https://github.com/YOUR_GITHUB_USER/YOUR_REPO.git
+git push -u origin main
+```
+
+## How To Deploy On Coolify
+
+Use `docker-compose.coolify.yml` with Coolify's Docker Compose build pack.
+
+### Coolify Steps
+
+1. Push this repository to GitHub.
+2. In Coolify, create a new resource from that GitHub repository.
+3. Choose the `Docker Compose` build pack.
+4. Set `Base Directory` to `/`.
+5. Set `Docker Compose Location` to `/docker-compose.coolify.yml`.
+6. Continue so Coolify parses the services.
+7. Set the required environment variables in Coolify.
+8. Assign your domain to the `app` service.
+
+Because Vikunja listens on container port `3456`, set the domain on the `app` service with that container port in mind. A practical example is:
+
+```text
+https://vikunja.example.com:3456
+```
+
+Coolify uses that port to route traffic to the container while still exposing the site on the normal public HTTP/HTTPS ports through its proxy.
+
+9. Deploy the stack.
+
+### Exact Environment Variables To Set In Coolify
+
+Set these in Coolify for the `docker-compose.coolify.yml` deployment:
+
+- `VIKUNJA_SERVICE_PUBLICURL`
+- `VIKUNJA_SERVICE_SECRET`
+- `POSTGRES_DB`
+- `POSTGRES_USER`
+- `POSTGRES_PASSWORD`
+
+Optional but useful overrides:
+
+- `VIKUNJA_SERVICE_ENABLEREGISTRATION`
+- `VIKUNJA_SERVICE_TIMEZONE`
+- `VIKUNJA_LOG_LEVEL`
+- `VIKUNJA_DATABASE_SSLMODE`
+- `VIKUNJA_DATABASE_MAXOPENCONNECTIONS`
+- `VIKUNJA_DATABASE_MAXIDLECONNECTIONS`
+- `VIKUNJA_DATABASE_MAXCONNECTIONLIFETIME`
+- `VIKUNJA_RELEASE_VERSION`
+
+### Recommended Coolify Values
+
+```text
+VIKUNJA_SERVICE_PUBLICURL=https://vikunja.example.com
+VIKUNJA_SERVICE_SECRET=<long-random-secret>
+POSTGRES_DB=vikunja
+POSTGRES_USER=vikunja
+POSTGRES_PASSWORD=<strong-password>
+VIKUNJA_SERVICE_ENABLEREGISTRATION=false
+VIKUNJA_SERVICE_TIMEZONE=UTC
+VIKUNJA_LOG_LEVEL=INFO
+VIKUNJA_DATABASE_SSLMODE=disable
+VIKUNJA_DATABASE_MAXOPENCONNECTIONS=25
+VIKUNJA_DATABASE_MAXIDLECONNECTIONS=25
+VIKUNJA_DATABASE_MAXCONNECTIONLIFETIME=10000
+VIKUNJA_RELEASE_VERSION=coolify
+```
+
+## Notes About Reverse Proxies
+
+- Vikunja runs on `:3456` inside the container.
+- `VIKUNJA_SERVICE_PUBLICURL` should always be the external URL users actually visit.
+- For local use, that is usually `http://localhost:3456`.
+- For Coolify, that should be your real public HTTPS URL, for example `https://vikunja.example.com`.
+
+## References
+
+- Vikunja project: https://github.com/go-vikunja/vikunja
+- Coolify Docker Compose build pack docs: https://coolify.io/docs/applications/build-packs/docker-compose
+- Coolify Docker Compose knowledge base: https://coolify.io/docs/knowledge-base/docker/compose
