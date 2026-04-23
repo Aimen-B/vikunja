@@ -1,9 +1,10 @@
 # Vikunja Source Deployment Repo
 
-This repository contains the full Vikunja source tree plus a simple Docker-based workflow for two cases:
+This repository contains the full Vikunja source tree plus a Docker-based workflow for three cases:
 
-1. Local development with `docker compose`
-2. Deployment on Coolify with the Docker Compose build pack
+1. Local production-like runs with `docker compose`
+2. Local hot reload with `docker compose` and mounted source
+3. Deployment on Coolify with the Docker Compose build pack
 
 The app is built from source inside Docker. It does not use the official prebuilt Vikunja image as the main runtime.
 
@@ -13,7 +14,9 @@ The app is built from source inside Docker. It does not use the official prebuil
 .
 ├── Dockerfile
 ├── docker-compose.yml
+├── docker-compose.dev.yml
 ├── docker-compose.coolify.yml
+├── .air.toml
 ├── .env.example
 ├── frontend/
 ├── pkg/
@@ -23,15 +26,17 @@ The app is built from source inside Docker. It does not use the official prebuil
 
 ## Tradeoffs
 
-- This setup rebuilds the app image after code changes instead of trying to hot-reload both the Go backend and Vite frontend inside containers.
-- That makes local iteration slower than a dedicated live-reload dev stack, but it keeps the structure simple and keeps the same source-build path for local use and Coolify.
+- The default `docker-compose.yml` stays close to production and rebuilds from source into the runtime image.
+- Hot reload lives in `docker-compose.dev.yml`, so local iteration is fast without leaking dev-only tooling into Coolify.
 - PostgreSQL and uploads are persisted with Docker volumes so local restarts and redeploys do not wipe state.
 
 ## Local Setup
 
+### Production-like local run
+
 1. Copy the example environment file:
 
-   ```bash
+   ```bash`
    cp .env.example .env
    ```
 
@@ -43,10 +48,10 @@ The app is built from source inside Docker. It does not use the official prebuil
 
    For local use, `VIKUNJA_SERVICE_PUBLICURL=http://localhost:3456` is fine.
 
-3. Build and start the stack:
+3. Build and start the stack with attached logs:
 
    ```bash
-   docker compose up -d --build
+   docker compose up --build
    ```
 
 4. Open:
@@ -55,39 +60,81 @@ The app is built from source inside Docker. It does not use the official prebuil
    http://localhost:3456
    ```
 
-5. Watch logs if needed:
+5. Stop the stack with `Ctrl+C`.
 
-   ```bash
-   docker compose logs -f app
-   ```
+### Local hot reload
+
+Use the dev overlay when you want Go auto-reload and Vue HMR:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+```
+
+This starts:
+
+- `app` on `http://localhost:3456`
+- `frontend` on `http://localhost:4173`
+- `postgres` with the same persistent database volume
+
+For hot reload, set these in `.env`:
+
+```dotenv
+VIKUNJA_FRONTEND_PORT=4173
+VIKUNJA_DEV_PUBLICURL=http://localhost:4173
+```
+
+In dev mode, the browser should use `http://localhost:4173` while the backend keeps running on `http://localhost:3456` behind Vite's proxy.
+
+### If port 3456 is already taken
+
+Change the app port in `.env`:
+
+```dotenv
+VIKUNJA_APP_PORT=3457
+VIKUNJA_SERVICE_PUBLICURL=http://localhost:3457
+```
+
+Or stop the container already using that port before starting this stack.
 
 ## How To Edit The Code
 
 - Backend code lives mainly in `pkg/` and `main.go`.
 - Frontend code lives in `frontend/`.
 - The Docker image builds the frontend first, copies `frontend/dist` into the Go build, and then compiles the Vikunja binary.
+- The hot-reload stack mounts the repo into the backend and frontend dev containers so you can edit the source directly in this checkout.
 
 Make your code changes normally in this repo. It is a standard Git checkout, so you can edit, commit, branch, and push it like any other repository.
 
 ## How To Rebuild After Code Changes
 
-After changing Go or frontend code:
+For the production-like compose stack:
 
 ```bash
 docker compose build app
-docker compose up -d app
+docker compose up app
 ```
 
 If you changed dependencies or want a full rebuild:
 
 ```bash
-docker compose up -d --build
+docker compose up --build
 ```
 
 If you want to stop the stack:
 
 ```bash
 docker compose down
+```
+
+For the hot-reload stack, code changes are picked up automatically:
+
+- Go changes restart the backend through `air`
+- Vue, TypeScript, and style changes refresh through Vite HMR
+
+Rebuild the hot-reload containers only when dependencies or Docker targets change:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
 ```
 
 The following data stays persisted in Docker volumes:
@@ -115,7 +162,7 @@ git push -u origin main
 
 ## How To Deploy On Coolify
 
-Use `docker-compose.coolify.yml` with Coolify's Docker Compose build pack.
+Use `docker-compose.coolify.yml` with Coolify's Docker Compose build pack. The dev overlay is local-only and should not be used in Coolify.
 
 ### Coolify Steps
 

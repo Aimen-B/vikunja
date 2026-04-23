@@ -38,6 +38,7 @@ mage-static
 .DS_Store
 /plugins/*
 /plugins-dev/*
+tmp/
 
 # pnpm
 .pnpm-store/

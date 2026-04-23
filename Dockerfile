@@ -3,6 +3,28 @@
 ARG NODE_VERSION=24.13.0
 ARG GO_VERSION=1.25.7
 
+FROM golang:${GO_VERSION}-alpine AS backend-dev
+
+WORKDIR /src
+
+RUN apk add --no-cache ca-certificates git \
+    && go install github.com/air-verse/air@v1.63.0
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+FROM node:${NODE_VERSION}-alpine AS frontend-dev
+
+WORKDIR /src/frontend
+
+ENV PNPM_CACHE_FOLDER=/pnpm/store
+ENV PUPPETEER_SKIP_DOWNLOAD=true
+ENV CYPRESS_INSTALL_BINARY=0
+
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/.npmrc ./
+
+RUN npm install -g corepack && corepack enable && pnpm install --frozen-lockfile
+
 FROM node:${NODE_VERSION}-alpine AS frontend-builder
 
 WORKDIR /src/frontend

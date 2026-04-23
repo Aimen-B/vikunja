@@ -1,0 +1,17 @@
+root = "."
+tmp_dir = "tmp/air"
+
+[build]
+cmd = "sh -c 'mkdir -p frontend/dist && touch frontend/dist/.keep && go build -o ./tmp/air/vikunja .'"
+bin = "./tmp/air/vikunja"
+delay = 1000
+exclude_dir = ["desktop", "docs", "frontend", "node_modules", "tmp"]
+exclude_file = []
+exclude_regex = ["_test\\.go"]
+include_ext = ["go"]
+stop_on_error = true
+send_interrupt = true
+kill_delay = "0s"
+
+[log]
+time = true

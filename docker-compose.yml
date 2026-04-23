@@ -32,7 +32,7 @@ services:
       VIKUNJA_DATABASE_MAXIDLECONNECTIONS: ${VIKUNJA_DATABASE_MAXIDLECONNECTIONS:-25}
       VIKUNJA_DATABASE_MAXCONNECTIONLIFETIME: ${VIKUNJA_DATABASE_MAXCONNECTIONLIFETIME:-10000}
     volumes:
-      - vikunja_files:/app/vikunja/files
+      - vikunja_files:${VIKUNJA_FILES_BASEPATH:-/app/vikunja/files}
     healthcheck:
       test: ["CMD", "/app/vikunja/vikunja", "healthcheck"]
       interval: 30s

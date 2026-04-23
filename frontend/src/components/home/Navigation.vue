@@ -24,7 +24,7 @@
 						<span class="menu-item-icon icon">
 							<Icon icon="calendar" />
 						</span>
-						{{ $t('navigation.overview') }}
+						{{ $t('navigation.dashboard') }}
 					</RouterLink>
 				</li>
 				<li>

@@ -1,0 +1,49 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend-dev
+    environment:
+      VIKUNJA_SERVICE_PUBLICURL: ${VIKUNJA_DEV_PUBLICURL:-http://localhost:4173}
+      VIKUNJA_SERVICE_ROOTPATH: /src
+      VIKUNJA_FILES_BASEPATH: /src/files
+    command: ["air", "-c", ".air.toml"]
+    working_dir: /src
+    volumes:
+      - vikunja_files:/src/files
+      - .:/src
+      - go_mod_cache:/go/pkg/mod
+      - go_build_cache:/root/.cache/go-build
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3456/api/v1/info >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend-dev
+    depends_on:
+      app:
+        condition: service_healthy
+    working_dir: /src/frontend
+    command: ["sh", "-lc", "pnpm install --frozen-lockfile && pnpm dev --host 0.0.0.0 --port ${VIKUNJA_FRONTEND_PORT:-4173}"]
+    environment:
+      DEV_PROXY: http://app:3456
+      VIKUNJA_FRONTEND_PORT: ${VIKUNJA_FRONTEND_PORT:-4173}
+    ports:
+      - "${VIKUNJA_FRONTEND_PORT:-4173}:4173"
+    volumes:
+      - ./frontend:/src/frontend
+      - frontend_node_modules:/src/frontend/node_modules
+      - frontend_pnpm_store:/pnpm/store
+
+volumes:
+  frontend_node_modules:
+  frontend_pnpm_store:
+  go_build_cache:
+  go_mod_cache:

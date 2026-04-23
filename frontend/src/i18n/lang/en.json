@@ -34,6 +34,37 @@
     "lastViewed": "Last viewed",
     "addToHomeScreen": "Add this app to your home screen for faster access and improved experience.",
     "goToOverview": "Go to overview",
+    "dashboardSubtitle": "A personal planning space for scheduled tasks, upcoming work, and task notes.",
+    "summary": {
+      "inView": "Scheduled in view",
+      "selectedDay": "On {date}",
+      "overdue": "Overdue in view",
+      "notes": "Tasks with notes"
+    },
+    "planner": {
+      "title": "Planner",
+      "agendaFor": "Agenda for {date}",
+      "visibleRange": "This range",
+      "today": "Today",
+      "month": "Month",
+      "week": "Week",
+      "day": "Day",
+      "openTask": "Open task",
+      "quickCreate": {
+        "title": "Create scheduled task",
+        "when": "Scheduled for",
+        "chooseDate": "Choose a date",
+        "notes": "Notes",
+        "notesPlaceholder": "Optional notes for this task"
+      }
+    },
+    "notes": {
+      "title": "Notes",
+      "subtitle": "Task notes",
+      "toggle": "Toggle notes",
+      "emptyTitle": "No task selected",
+      "emptyText": "Select a task from the planner or agenda to see its notes and timing details."
+    },
     "project": {
       "importText": "Import your projects and tasks from other services into Vikunja:",
       "import": "Import your data into Vikunja"
@@ -737,6 +768,7 @@
     "retry": "Retry"
   },
   "navigation": {
+    "dashboard": "Dashboard",
     "overview": "Overview",
     "upcoming": "Upcoming",
     "settings": "Settings",
