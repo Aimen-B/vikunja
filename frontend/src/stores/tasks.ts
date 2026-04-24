@@ -447,12 +447,14 @@ export const useTaskStore = defineStore('task', () => {
 		projectId,
 		position,
 		index,
+		dueDate,
 	} : 
 		Partial<ITask>,
 	) {
 		const cancel = setModuleLoading(setIsLoading)
 		const quickAddMagicMode = authStore.settings.frontendSettings.quickAddMagicMode
 		const parsedTask = parseTaskText(title, quickAddMagicMode)
+		const fallbackDueDate = dueDate ? new Date(dueDate).toISOString() : null
 
 		if(parsedTask.text === '') {
 			const taskService = new TaskService()
@@ -463,6 +465,7 @@ export const useTaskStore = defineStore('task', () => {
 					bucketId,
 					position,
 					index,
+					dueDate: fallbackDueDate,
 				}))
 			} finally {
 				cancel()
@@ -491,12 +494,12 @@ export const useTaskStore = defineStore('task', () => {
 		}
 
 		// I don't know why, but it all goes up in flames when I just pass in the date normally.
-		const dueDate = parsedTask.date !== null ? new Date(parsedTask.date).toISOString() : null
+		const resolvedDueDate = parsedTask.date !== null ? new Date(parsedTask.date).toISOString() : fallbackDueDate
 	
 		const task = new TaskModel({
 			title: cleanedTitle,
 			projectId: foundProjectId,
-			dueDate,
+			dueDate: resolvedDueDate,
 			priority: parsedTask.priority,
 			assignees,
 			bucketId: bucketId || 0,
@@ -506,7 +509,7 @@ export const useTaskStore = defineStore('task', () => {
 		task.repeatAfter = parsedTask.repeats
 		task.reminders = buildDefaultRemindersForQuickAdd(
 			authStore.settings.frontendSettings.quickAddDefaultReminders,
-			dueDate,
+			resolvedDueDate,
 		)
 
 		if (parsedTask.repeats?.type === REPEAT_TYPES.Months && parsedTask.repeats?.amount === 1) {

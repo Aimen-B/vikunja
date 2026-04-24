@@ -50,7 +50,7 @@ The app is built from source inside Docker. It does not use the official prebuil
 
 3. Build and start the stack with attached logs:
 
-   ```bash
+   ```bash`
    docker compose up --build
    ```
 

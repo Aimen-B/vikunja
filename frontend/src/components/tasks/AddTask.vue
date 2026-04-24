@@ -81,8 +81,10 @@ import TaskModel from '@/models/task'
 
 const props = withDefaults(defineProps<{
 	defaultPosition?: number,
+	defaultDueDate?: Date | null,
 }>(), {
 	defaultPosition: undefined,
+	defaultDueDate: null,
 })
 
 const emit = defineEmits(['taskAdded'])
@@ -190,6 +192,7 @@ async function addTask() {
 			projectId: projectId || authStore.settings.defaultProjectId,
 			position: props.defaultPosition,
 			index: taskIndex,
+			dueDate: props.defaultDueDate ? new Date(props.defaultDueDate) : null,
 		})
 		createdTasks[title] = task
 		return task

@@ -94,6 +94,7 @@
 
 		<AddTask
 			class="home-dashboard__quick-add"
+			:default-due-date="selectedDate"
 			@taskAdded="handleTaskAdded"
 		/>
 
